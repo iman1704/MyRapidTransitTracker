@@ -1,0 +1,161 @@
+{
+  "_sample_info": {
+    "saved_at": "2025-10-07T09:20:39.361889Z",
+    "message_key": "1759828839.230173",
+    "filename": "gtfs_sample_20251007_092039.json",
+    "total_entities": 204,
+    "entity_type_distribution": {
+      "vehicle_position": 204
+    }
+  },
+  "header": {
+    "gtfs_realtime_version": "2.0",
+    "incrementality": "FULL_DATASET",
+    "timestamp": "1759828814"
+  },
+  "entity_samples": [
+    {
+      "sample_index": 0,
+      "entity_id": "0",
+      "entity_type": "vehicle_position",
+      "data": {
+        "id": "0",
+        "vehicle": {
+          "trip": {
+            "trip_id": "weekday_T6000_T600002_0",
+            "start_time": "17:00:41",
+            "start_date": "20251007",
+            "route_id": "T6000"
+          },
+          "position": {
+            "latitude": 3.016967,
+            "longitude": 101.626495,
+            "bearing": 111.0,
+            "speed": 20.37
+          },
+          "timestamp": "1759828808",
+          "vehicle": {
+            "id": "WVB3741",
+            "license_plate": "WVB3741"
+          }
+        }
+      }
+    },
+    {
+      "sample_index": 1,
+      "entity_id": "1",
+      "entity_type": "vehicle_position",
+      "data": {
+        "id": "1",
+        "vehicle": {
+          "trip": {
+            "trip_id": "weekday_P1060_P106002_5",
+            "start_time": "16:23:17",
+            "start_date": "20251007",
+            "route_id": "P1060"
+          },
+          "position": {
+            "latitude": 2.92385,
+            "longitude": 101.70532,
+            "bearing": 239.0,
+            "speed": 24.08
+          },
+          "timestamp": "1759828797",
+          "vehicle": {
+            "id": "WC1692M",
+            "license_plate": "WC1692M"
+          }
+        }
+      }
+    },
+    {
+      "sample_index": 2,
+      "entity_id": "2",
+      "entity_type": "vehicle_position",
+      "data": {
+        "id": "2",
+        "vehicle": {
+          "trip": {
+            "trip_id": "weekday_U2538_U253802_2",
+            "start_time": "16:21:09",
+            "start_date": "20251007",
+            "route_id": "U2538"
+          },
+          "position": {
+            "latitude": 3.189967,
+            "longitude": 101.76084,
+            "bearing": 355.0,
+            "speed": 16.67
+          },
+          "timestamp": "1759828779",
+          "vehicle": {
+            "id": "JXM2864",
+            "license_plate": "JXM2864"
+          }
+        }
+      }
+    },
+    {
+      "sample_index": 3,
+      "entity_id": "3",
+      "entity_type": "vehicle_position",
+      "data": {
+        "id": "3",
+        "vehicle": {
+          "trip": {
+            "trip_id": "weekday_T2020_T202002_1",
+            "start_time": "17:17:46",
+            "start_date": "20251007",
+            "route_id": "T2020"
+          },
+          "position": {
+            "latitude": 3.220817,
+            "longitude": 101.71833,
+            "bearing": 359.0,
+            "speed": 14.82
+          },
+          "timestamp": "1759828786",
+          "vehicle": {
+            "id": "WB3632M",
+            "license_plate": "WB3632M"
+          }
+        }
+      }
+    },
+    {
+      "sample_index": 4,
+      "entity_id": "4",
+      "entity_type": "vehicle_position",
+      "data": {
+        "id": "4",
+        "vehicle": {
+          "trip": {
+            "trip_id": "weekday_U4200_U420002_5",
+            "start_time": "17:00:35",
+            "start_date": "20251007",
+            "route_id": "U4200"
+          },
+          "position": {
+            "latitude": 3.133467,
+            "longitude": 101.74549,
+            "bearing": 336.0,
+            "speed": 27.78
+          },
+          "timestamp": "1759828805",
+          "vehicle": {
+            "id": "WVP2487",
+            "license_plate": "WVP2487"
+          }
+        }
+      }
+    }
+  ],
+  "metadata": {
+    "parsed_timestamp": "2025-10-07T09:20:39.360857Z",
+    "header_timestamp": "1759828814",
+    "gtfs_realtime_version": "2.0",
+    "incementality": "FULL_DATASET",
+    "entity_count": 204,
+    "schema_version": "1.0"
+  }
+}

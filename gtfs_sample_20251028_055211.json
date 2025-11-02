@@ -1,0 +1,161 @@
+{
+  "_sample_info": {
+    "saved_at": "2025-10-28T05:52:11.915148Z",
+    "message_key": "1761630731.894999",
+    "filename": "gtfs_sample_20251028_055211.json",
+    "total_entities": 189,
+    "entity_type_distribution": {
+      "vehicle_position": 189
+    }
+  },
+  "header": {
+    "gtfs_realtime_version": "2.0",
+    "incrementality": "FULL_DATASET",
+    "timestamp": "1761630723"
+  },
+  "entity_samples": [
+    {
+      "sample_index": 0,
+      "entity_id": "0",
+      "entity_type": "vehicle_position",
+      "data": {
+        "id": "0",
+        "vehicle": {
+          "trip": {
+            "trip_id": "weekday_T7910_T791002_0",
+            "start_time": "13:31:57",
+            "start_date": "20251028",
+            "route_id": "T7910"
+          },
+          "position": {
+            "latitude": 3.10367,
+            "longitude": 101.66113,
+            "bearing": 211.9,
+            "speed": 0.0
+          },
+          "timestamp": "1761630711",
+          "vehicle": {
+            "id": "WVH9724",
+            "license_plate": "WVH9724"
+          }
+        }
+      }
+    },
+    {
+      "sample_index": 1,
+      "entity_id": "1",
+      "entity_type": "vehicle_position",
+      "data": {
+        "id": "1",
+        "vehicle": {
+          "trip": {
+            "trip_id": "weekday_U7510_U751001_4",
+            "start_time": "13:26:12",
+            "start_date": "20251028",
+            "route_id": "U7510"
+          },
+          "position": {
+            "latitude": 3.101217,
+            "longitude": 101.64116,
+            "bearing": 0.0,
+            "speed": 0.0
+          },
+          "timestamp": "1761630712",
+          "vehicle": {
+            "id": "RAPID451",
+            "license_plate": "RAPID451"
+          }
+        }
+      }
+    },
+    {
+      "sample_index": 2,
+      "entity_id": "2",
+      "entity_type": "vehicle_position",
+      "data": {
+        "id": "2",
+        "vehicle": {
+          "trip": {
+            "trip_id": "weekday_U7700_U770001_1",
+            "start_time": "13:36:45",
+            "start_date": "20251028",
+            "route_id": "U7700"
+          },
+          "position": {
+            "latitude": 3.115075,
+            "longitude": 101.66372,
+            "bearing": 272.7,
+            "speed": 63.89
+          },
+          "timestamp": "1761630714",
+          "vehicle": {
+            "id": "VGJ1970",
+            "license_plate": "VGJ1970"
+          }
+        }
+      }
+    },
+    {
+      "sample_index": 3,
+      "entity_id": "3",
+      "entity_type": "vehicle_position",
+      "data": {
+        "id": "3",
+        "vehicle": {
+          "trip": {
+            "trip_id": "weekday_U6000_U600002_11",
+            "start_time": "13:01:44",
+            "start_date": "20251028",
+            "route_id": "U6000"
+          },
+          "position": {
+            "latitude": 3.142718,
+            "longitude": 101.69613,
+            "bearing": 273.2,
+            "speed": 2.22
+          },
+          "timestamp": "1761630674",
+          "vehicle": {
+            "id": "VGF8475",
+            "license_plate": "VGF8475"
+          }
+        }
+      }
+    },
+    {
+      "sample_index": 4,
+      "entity_id": "4",
+      "entity_type": "vehicle_position",
+      "data": {
+        "id": "4",
+        "vehicle": {
+          "trip": {
+            "trip_id": "weekday_U4000_U400002_6",
+            "start_time": "11:50:37",
+            "start_date": "20251028",
+            "route_id": "U4000"
+          },
+          "position": {
+            "latitude": 3.052083,
+            "longitude": 101.7535,
+            "bearing": 176.0,
+            "speed": 35.19
+          },
+          "timestamp": "1761630697",
+          "vehicle": {
+            "id": "WVL641",
+            "license_plate": "WVL641"
+          }
+        }
+      }
+    }
+  ],
+  "metadata": {
+    "parsed_timestamp": "2025-10-28T05:52:11.913999Z",
+    "header_timestamp": "1761630723",
+    "gtfs_realtime_version": "2.0",
+    "incementality": "FULL_DATASET",
+    "entity_count": 189,
+    "schema_version": "1.0"
+  }
+}
