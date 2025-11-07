@@ -3300,7 +3300,7 @@ createApp({
 
 ```text
 [project]
-name = "project-alpha"
+name = "MyRapidTransitTracker"
 version = "0.0.1"
 description = "End-to-end data ingestion project with visualization"
 authors = [{ name = "Iman", email = "mhdiman17@gmail.com" }]
@@ -3340,9 +3340,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://iman1704.github.io/project-alpha/"
-Repository = "https://github.com/iman1704/project-alpha"
-Documentation = "https://iman1704.github.io/project-alpha/"
+Homepage = "https://iman1704.github.io/MyRapidTransitTracker/"
+Repository = "https://github.com/iman1704/MyRapidTransitTracker"
+Documentation = "https://iman1704.github.io/MyRapidTransitTracker/"
 
 [dependency-groups]
 dev = [

@@ -2,13 +2,12 @@
 Database connection utilities
 """
 
-from redis.crc import REDIS_CLUSTER_HASH_SLOTS
 import redis
 import logging
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from project_alpha.config.settings import settings
+from MyRapidTransitTracker.config.settings import settings
 
 
 # Setup logging

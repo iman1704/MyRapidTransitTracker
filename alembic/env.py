@@ -17,7 +17,7 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from project_alpha.database.models import Base
+from MyRapidTransitTracker.database.models import Base
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata

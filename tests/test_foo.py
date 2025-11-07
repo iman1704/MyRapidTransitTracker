@@ -1,4 +1,4 @@
-from project_alpha.foo import foo
+from MyRapidTransitTracker.foo import foo
 
 
 def test_foo():

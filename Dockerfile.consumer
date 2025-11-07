@@ -9,8 +9,8 @@ WORKDIR /app
 COPY pyproject.toml README.md ./
 RUN pip install --upgrade pip && pip install .
 
-COPY project_alpha ./project_alpha
+COPY MyRapidTransitTracker ./MyRapidTransitTracker
 
 ENV PYTHONPATH=/app
 
-CMD ["python", "-m", "project_alpha.data_ingestion.raw_consumer"]
+CMD ["python", "-m", "MyRapidTransitTracker.data_ingestion.raw_consumer"]

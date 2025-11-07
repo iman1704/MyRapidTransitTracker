@@ -15,7 +15,7 @@ from google.transit import gtfs_realtime_pb2
 from kafka import KafkaConsumer, KafkaProducer
 from kafka.errors import NoBrokersAvailable
 
-from project_alpha.config.settings import settings
+from MyRapidTransitTracker.config.settings import settings
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 

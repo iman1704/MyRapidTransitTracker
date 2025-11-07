@@ -5,9 +5,9 @@ import subprocess
 import sys
 
 tests = [
-    "from project_alpha.config.settings import settings",
-    "from project_alpha.database.models import Vehicle",
-    "from project_alpha.utils.logger import setup_logger",
+    "from MyRapidTransitTracker.config.settings import settings",
+    "from MyRapidTransitTracker.database.models import Vehicle",
+    "from MyRapidTransitTracker.utils.logger import setup_logger",
     "print('✅ All imports successful!')",
 ]
 

@@ -17,9 +17,9 @@ from sqlalchemy.exc import InterfaceError, OperationalError
 from sqlalchemy.orm import sessionmaker
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from project_alpha.config.settings import settings
-from project_alpha.database.database import get_db
-from project_alpha.database.models import Base, CurrentVehiclePosition, Route, Trip, Vehicle, VehiclePosition
+from MyRapidTransitTracker.config.settings import settings
+from MyRapidTransitTracker.database.database import get_db
+from MyRapidTransitTracker.database.models import Base, CurrentVehiclePosition, Route, Trip, Vehicle, VehiclePosition
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

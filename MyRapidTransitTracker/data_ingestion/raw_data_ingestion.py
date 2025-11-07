@@ -9,7 +9,7 @@ from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import KafkaError
 
 # Import settings from your configs.py file
-from project_alpha.config.settings import settings
+from MyRapidTransitTracker.config.settings import settings
 
 # Setup logging
 logging.basicConfig(level=settings.LOG_LEVEL, format="%(asctime)s - %(name)s - %(message)s")

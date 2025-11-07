@@ -181,7 +181,7 @@ services:
   web-app:
     build:
       context: .
-      dockerfile: project_alpha/Dockerfile.viz
+      dockerfile: MyRapidTransitTracker/Dockerfile.viz
     platform: linux/arm64
     container_name: gtfs-visualization
     depends_on:

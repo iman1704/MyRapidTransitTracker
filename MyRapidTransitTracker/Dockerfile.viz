@@ -9,11 +9,11 @@ WORKDIR /app
 COPY pyproject.toml README.md ./
 RUN pip install --upgrade pip && pip install .
 
-COPY project_alpha ./project_alpha
+COPY MyRapidTransitTracker ./MyRapidTransitTracker
 
 ENV PYTHONPATH=/app
 
-WORKDIR /app/project_alpha/visualization
+WORKDIR /app/MyRapidTransitTracker/visualization
 
 EXPOSE 8000
 

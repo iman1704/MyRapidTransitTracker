@@ -1,15 +1,15 @@
-# project-alpha
+# MyRapidTransitTracker
 
-[![Release](https://img.shields.io/github/v/release/iman1704/project-alpha)](https://img.shields.io/github/v/release/iman1704/project-alpha)
-[![Build status](https://img.shields.io/github/actions/workflow/status/iman1704/project-alpha/main.yml?branch=main)](https://github.com/iman1704/project-alpha/actions/workflows/main.yml?query=branch%3Amain)
-[![codecov](https://codecov.io/gh/iman1704/project-alpha/branch/main/graph/badge.svg)](https://codecov.io/gh/iman1704/project-alpha)
-[![Commit activity](https://img.shields.io/github/commit-activity/m/iman1704/project-alpha)](https://img.shields.io/github/commit-activity/m/iman1704/project-alpha)
-[![License](https://img.shields.io/github/license/iman1704/project-alpha)](https://img.shields.io/github/license/iman1704/project-alpha)
+[![Release](https://img.shields.io/github/v/release/iman1704/MyRapidTransitTracker)](https://img.shields.io/github/v/release/iman1704/MyRapidTransitTracker)
+[![Build status](https://img.shields.io/github/actions/workflow/status/iman1704/MyRapidTransitTracker/main.yml?branch=main)](https://github.com/iman1704/MyRapidTransitTracker/actions/workflows/main.yml?query=branch%3Amain)
+[![codecov](https://codecov.io/gh/iman1704/MyRapidTransitTracker/branch/main/graph/badge.svg)](https://codecov.io/gh/iman1704/MyRapidTransitTracker)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/iman1704/MyRapidTransitTracker)](https://img.shields.io/github/commit-activity/m/iman1704/MyRapidTransitTracker)
+[![License](https://img.shields.io/github/license/iman1704/MyRapidTransitTracker)](https://img.shields.io/github/license/iman1704/MyRapidTransitTracker)
 
 End-to-end data ingestion project with visualization
 
-- **Github repository**: <https://github.com/iman1704/project-alpha/>
-- **Documentation** <https://iman1704.github.io/project-alpha/>
+- **Github repository**: <https://github.com/iman1704/MyRapidTransitTracker/>
+- **Documentation** <https://iman1704.github.io/MyRapidTransitTracker/>
 
 ## Getting started with your project
 
@@ -21,7 +21,7 @@ First, create a repository on GitHub with the same name as this project, and the
 git init -b main
 git add .
 git commit -m "init commit"
-git remote add origin git@github.com:iman1704/project-alpha.git
+git remote add origin git@github.com:iman1704/MyRapidTransitTracker.git
 git push -u origin main
 ```
 

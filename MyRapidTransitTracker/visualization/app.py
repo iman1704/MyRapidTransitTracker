@@ -14,8 +14,8 @@ from typing import Optional, List
 
 from pydantic import BaseModel, Field
 
-from project_alpha.database.database import get_db, redis_client
-from project_alpha.database.models import Vehicle, VehiclePosition, CurrentVehiclePosition, Route
+from MyRapidTransitTracker.database.database import get_db, redis_client
+from MyRapidTransitTracker.database.models import Vehicle, VehiclePosition, CurrentVehiclePosition, Route
 
 logger = logging.getLogger(__name__)
 

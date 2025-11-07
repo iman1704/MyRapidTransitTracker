@@ -9,9 +9,9 @@ WORKDIR /app
 COPY pyproject.toml README.md ./
 RUN pip install --upgrade pip && pip install .
 
-COPY project_alpha ./project_alpha
+COPY MyRapidTransitTracker ./MyRapidTransitTracker
 
 ENV PYTHONPATH=/app
 
-CMD ["python", "-m", "project_alpha.stream_processing.database_writer"]
+CMD ["python", "-m", "MyRapidTransitTracker.stream_processing.database_writer"]
 
