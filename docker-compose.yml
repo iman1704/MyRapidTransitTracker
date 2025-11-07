@@ -79,6 +79,29 @@ services:
       start_period: 10s
 
   # ============================================
+  # REDIS - Cache & Session Store
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    platform: linux/arm64
+    hostname: redis
+    container_name: gtfs-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis-data:/data
+    networks:
+      - gtfs-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ============================================
   # DATA INGESTION - GTFS Feed Producer
   # ============================================
   data-ingestion:
@@ -153,29 +176,6 @@ services:
     restart: unless-stopped
 
   # ============================================
-  # FRONTEND - React Web Application
-  # ============================================
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    platform: linux/arm64
-    container_name: gtfs-frontend
-    depends_on:
-      - web-app
-    ports:
-      - "3000:80"
-    networks:
-      - gtfs-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-  # ============================================
   # VISUALIZATION - Web Application
   # ============================================
   web-app:
@@ -187,6 +187,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     ports:
       - "5001:8000"
     environment:
@@ -195,7 +197,10 @@ services:
       - DB_NAME=${DB_NAME:-rapid-bus-kl-realtime}
       - DB_USER=${DB_USER:-Iman}
       - DB_PASSWORD=${DB_PASSWORD:-IMAN1704}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
       - PYTHONUNBUFFERED=1
+    command: ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "debug"]
     networks:
       - gtfs-network
     restart: unless-stopped
@@ -217,4 +222,6 @@ networks:
 # ============================================
 volumes:
   postgres-data:
+    driver: local
+  redis-data:
     driver: local

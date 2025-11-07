@@ -55,7 +55,8 @@ class Settings(BaseSettings):
     BATCH_TIMEOUT_SECONDS: int = 180
     CLEANUP_INTERVAL_HOURS: int = 24
 
-    REDIS_URL: str = "redis://localhost:6379"
+    REDIS_PORT: int = 6379
+    REDIS_HOST: str = "redis"
     
     # Additional settings
     FLASK_SECRET_KEY: str = "dev-secret-key-change-in-production"

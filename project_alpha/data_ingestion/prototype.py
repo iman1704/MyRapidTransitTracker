@@ -1,5 +1,6 @@
 # pip install gtfs-realtime-bindings pandas requests
 import pandas as pd
+from datetime import datetime, timezone
 from google.protobuf.json_format import MessageToDict
 from google.transit import gtfs_realtime_pb2
 from requests import get
@@ -35,5 +36,7 @@ feed.ParseFromString(response.content)
 vehicle_positions = [MessageToDict(entity.vehicle) for entity in feed.entity]
 print(f"Total vehicles: {len(vehicle_positions)}")
 df = pd.json_normalize(vehicle_positions)
+print(datetime.now())
+print(datetime.utcnow())
 print(df.head(10))
 print(df.columns)

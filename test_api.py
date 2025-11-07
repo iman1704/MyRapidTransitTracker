@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Test script to verify the API endpoints for the vehicle tracking application
-Updated for FastAPI backend and new frontend features
+Updated for FastAPI backend
 Modified to show sample responses from each test
 """
 import asyncio
