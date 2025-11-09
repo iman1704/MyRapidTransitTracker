@@ -57,6 +57,7 @@ class Settings(BaseSettings):
 
     REDIS_PORT: int = 6379
     REDIS_HOST: str = "redis"
+    SAVE_BATCH_TO_JSON: bool = True
     
     # Additional settings
     FLASK_SECRET_KEY: str = "dev-secret-key-change-in-production"
