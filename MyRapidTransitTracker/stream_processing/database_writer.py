@@ -84,7 +84,7 @@ class DatabaseWriter:
                     "longitude": position.get("longitude"),
                     "bearing": position.get("bearing"),
                     "speed": position.get("speed"),
-                    "feed_timestamp": feed_timestamp,
+                    "feed_timestamp": vehicle_data.get("timestamp") or feed_timestamp,
                 }
 
                 if extracted["vehicle_id"] and extracted["latitude"] is not None and extracted["longitude"] is not None:
@@ -226,6 +226,29 @@ class DatabaseWriter:
         except Exception as e:
             logger.error(f"Error cleaning up old records: {e}")
 
+
+
+    def _save_batch_to_json(self, batch):
+        """Save a batch of data to a JSON file for debugging."""
+        if not batch:
+            return
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"batch_data_{timestamp}.json"
+        
+        # Convert datetime objects to ISO format strings for JSON serialization
+        def json_default(o):
+            if isinstance(o, (datetime, datetime.date, datetime.time)):
+                return o.isoformat()
+            raise TypeError(f"Type {type(o)} not serializable")
+
+        try:
+            with open(filename, "w") as f:
+                json.dump(batch, f, indent=2, default=json_default)
+            logger.info(f"Saved batch data to {filename}")
+        except Exception as e:
+            logger.error(f"Error saving batch data to JSON: {e}")
+
     def run(self):
         """Main loop that batches kafka messages, writes to database, clean up old data"""
         logger.info("Starting database writer...")
@@ -245,6 +268,10 @@ class DatabaseWriter:
                 if len(vehicle_data_batch) >= PROCESSING_BATCH_SIZE or (
                     time_since_last_flush >= BATCH_TIMEOUT_SECONDS and vehicle_data_batch
                 ):
+                    # Save batch to JSON for debugging
+                    if settings.SAVE_BATCH_TO_JSON:
+                        self._save_batch_to_json(vehicle_data_batch)
+                        
                     db = next(get_db())
                     try:
                         processed_count = self.process_vehicle_positions(vehicle_data_batch, db)

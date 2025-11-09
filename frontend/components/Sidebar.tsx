@@ -33,6 +33,26 @@ const TIME_FILTER_OPTIONS = [
 
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
+const parseUTCTimestamp = (timestampStr: string | null | undefined): Date | null => {
+    if (!timestampStr) return null;
+
+    // Append 'Z' to ensure the timestamp is parsed as UTC
+    if (timestampStr.includes('T') && !timestampStr.endsWith('Z')) {
+        timestampStr += 'Z';
+    }
+    
+    if (timestampStr.includes('T') || timestampStr.includes('Z')) {
+        return new Date(timestampStr);
+    } else {
+        // This branch might still be needed if some timestamps are unix epoch
+        return new Date(parseInt(timestampStr) * 1000);
+    }
+};
+
+const getCurrentUTCTime = (): Date => {
+    return new Date(Date.now());
+};
+
 export function Sidebar({
     vehicles,
     routes,
@@ -54,6 +74,7 @@ export function Sidebar({
     const activeVehicleCount = vehicles.length;
     
     // Filter vehicles for display count
+    const nowUTC = getCurrentUTCTime();
     const filteredCount = vehicles.filter(v => {
         if (filters.routeId && v.route?.id !== filters.routeId) {
             return false;
@@ -61,9 +82,12 @@ export function Sidebar({
         
         // Time filter check
         if (filters.timeFilter > 0 && v.feed_timestamp) {
-            const timestamp = new Date(v.feed_timestamp);
-            const now = new Date();
-            const cutoffTime = new Date(now.getTime() - filters.timeFilter * 60000);
+            const timestamp = parseUTCTimestamp(v.feed_timestamp);
+
+            if (!timestamp) {
+                return false;
+            }
+            const cutoffTime = new Date(nowUTC.getTime() - filters.timeFilter * 60000);
             
             return timestamp >= cutoffTime;
         }
@@ -106,7 +130,7 @@ export function Sidebar({
             
             {!isCollapsed && (
                 <>
-                    <h1 className="text-xl font-bold mb-4 text-primary-accent">Rapid Bus Visualizer</h1>
+                    <h1 className="text-xl font-bold mb-4 text-primary-accent">Rapid Bus KL Tracking</h1>
                     
                     {/* Stats Panel */}
                     <div className="bg-dark-card p-3 rounded-lg mb-4">

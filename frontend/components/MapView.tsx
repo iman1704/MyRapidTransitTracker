@@ -28,8 +28,23 @@ const ATTRIBUTION = 'Map data &copy; <a href="https://www.openstreetmap.org/">Op
 const INITIAL_CENTER: [number, number] = [3.139, 101.686];
 const INITIAL_ZOOM = 12;
 
+const parseUTCTimestamp = (timestampStr: string | null | undefined): Date | null => {
+    if (!timestampStr) return null;
+    if (timestampStr.includes('T') || timestampStr.includes('Z')) {
+        return new Date(timestampStr);
+    } else {
+        return new Date(parseInt(timestampStr) * 1000);
+    }
+};
+
+const getCurrentUTCTime = (): Date => {
+    return new Date(Date.now());
+};
+
 // Filter vehicles based on the current state
 const filterVehicles = (vehicles: CurrentVehicle[], filters: MapViewProps['filters']): CurrentVehicle[] => {
+    const nowUTC = getCurrentUTCTime();
+    
     return vehicles.filter(v => {
         // Route filter
         if (filters.routeId && v.route?.id !== filters.routeId) {
@@ -38,15 +53,10 @@ const filterVehicles = (vehicles: CurrentVehicle[], filters: MapViewProps['filte
         
         // Time filter - check if vehicle was updated within the specified timeframe
         if (filters.timeFilter > 0 && v.feed_timestamp) {
-            const timestamp = new Date(v.feed_timestamp);
-            const now = new Date();
-            const minutesAgo = filters.timeFilter;
-            const cutoffTime = new Date(now.getTime() - minutesAgo * 60000);
-            
-            // Keep vehicle if its timestamp is newer than the cutoff
-            if (timestamp < cutoffTime) {
-                return false;
-            }
+            const timestamp = parseUTCTimestamp(v.feed_timestamp);
+            if (!timestamp) return false;
+            const cutoffTime = new Date(nowUTC.getTime() - filters.timeFilter * 60000);
+            return timestamp >= cutoffTime;
         }
         
         return true;
