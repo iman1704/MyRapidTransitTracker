@@ -36,22 +36,16 @@ const fetcher = (url: string) => fetch(url).then(res => res.json());
 const parseUTCTimestamp = (timestampStr: string | null | undefined): Date | null => {
     if (!timestampStr) return null;
 
-    // Append 'Z' to ensure the timestamp is parsed as UTC
-    if (timestampStr.includes('T') && !timestampStr.endsWith('Z')) {
-        timestampStr += 'Z';
+    try {
+        const date = new Date(timestampStr);
+        if (isNaN(date.getTime())) return null;
+        return date;
+    } catch {
+        return null;
     }
     
-    if (timestampStr.includes('T') || timestampStr.includes('Z')) {
-        return new Date(timestampStr);
-    } else {
-        // This branch might still be needed if some timestamps are unix epoch
-        return new Date(parseInt(timestampStr) * 1000);
-    }
 };
 
-const getCurrentUTCTime = (): Date => {
-    return new Date(Date.now());
-};
 
 export function Sidebar({
     vehicles,
@@ -74,7 +68,6 @@ export function Sidebar({
     const activeVehicleCount = vehicles.length;
     
     // Filter vehicles for display count
-    const nowUTC = getCurrentUTCTime();
     const filteredCount = vehicles.filter(v => {
         if (filters.routeId && v.route?.id !== filters.routeId) {
             return false;
@@ -87,7 +80,23 @@ export function Sidebar({
             if (!timestamp) {
                 return false;
             }
-            const cutoffTime = new Date(nowUTC.getTime() - filters.timeFilter * 60000);
+
+            const now = new Date();
+            const cutoffTime = new Date(now.getTime() - filters.timeFilter * 60000);
+
+            // debugging code
+            const ageMinutes = (now.getTime() - timestamp.getTime()) / 60000;
+
+            if (vehicles.indexOf(v) < 3) {
+                console.log('Vehicle ${v.vehicle_id}:', {
+                    timestamp: timestamp.toISOString(),
+                    now: now.toISOString(),
+                    cutoff: cutoffTime.toISOString(),
+                    ageMinutes: ageMinutes.toFixed(1),
+                    filterMinutes: filters.timeFilter,
+                    passes: timestamp >= cutoffTime
+                });
+            }
             
             return timestamp >= cutoffTime;
         }

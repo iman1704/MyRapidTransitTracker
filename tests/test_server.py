@@ -3,7 +3,7 @@ import requests
 import time
 
 def test_api_server():
-    base_url = "http://localhost:5000"
+    base_url = "http://localhost:5001"
     
     try:
         # Test health check

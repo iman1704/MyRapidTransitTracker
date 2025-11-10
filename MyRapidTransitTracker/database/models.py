@@ -69,7 +69,7 @@ class CurrentVehiclePosition(Base):
     route_id = Column(String(100), ForeignKey("routes.id"), nullable=True)
 
     # Timestamps
-    feed_timestamp = Column(DateTime)
+    feed_timestamp = Column(DateTime(timezone=True))
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
     # Relationships

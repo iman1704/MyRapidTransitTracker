@@ -30,20 +30,19 @@ const INITIAL_ZOOM = 12;
 
 const parseUTCTimestamp = (timestampStr: string | null | undefined): Date | null => {
     if (!timestampStr) return null;
-    if (timestampStr.includes('T') || timestampStr.includes('Z')) {
-        return new Date(timestampStr);
-    } else {
-        return new Date(parseInt(timestampStr) * 1000);
-    }
-};
 
-const getCurrentUTCTime = (): Date => {
-    return new Date(Date.now());
+    try {
+        const date = new Date(timestampStr);
+        if (isNaN(date.getTime())) return null;
+        return date;
+    } catch {
+        return null;
+    }
 };
 
 // Filter vehicles based on the current state
 const filterVehicles = (vehicles: CurrentVehicle[], filters: MapViewProps['filters']): CurrentVehicle[] => {
-    const nowUTC = getCurrentUTCTime();
+    const now = new Date();
     
     return vehicles.filter(v => {
         // Route filter
@@ -55,7 +54,8 @@ const filterVehicles = (vehicles: CurrentVehicle[], filters: MapViewProps['filte
         if (filters.timeFilter > 0 && v.feed_timestamp) {
             const timestamp = parseUTCTimestamp(v.feed_timestamp);
             if (!timestamp) return false;
-            const cutoffTime = new Date(nowUTC.getTime() - filters.timeFilter * 60000);
+
+            const cutoffTime = new Date(now.getTime() - filters.timeFilter * 60000);
             return timestamp >= cutoffTime;
         }
         
