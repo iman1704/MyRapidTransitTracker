@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     DB_NAME: str = "gtfs_data"
     DB_USER: str = "user"
     DB_PASSWORD: str = "password"
-    DB_RETENTION: int = 30  # Record time-to-live
+    DB_RETENTION: int = 7 # Period to keep record
 
     # Application configs
     POLLING_INTERVAL: int = 30
@@ -54,10 +54,11 @@ class Settings(BaseSettings):
     BATCH_SIZE: int = 500
     BATCH_TIMEOUT_SECONDS: int = 180
     CLEANUP_INTERVAL_HOURS: int = 24
+    DATA_RETENTION_DAYS: int = 7
 
     REDIS_PORT: int = 6379
     REDIS_HOST: str = "redis"
-    SAVE_BATCH_TO_JSON: bool = True
+    SAVE_BATCH_TO_JSON: bool = False
     
     # Additional settings
     FLASK_SECRET_KEY: str = "dev-secret-key-change-in-production"
