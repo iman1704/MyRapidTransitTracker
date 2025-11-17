@@ -9,9 +9,9 @@ interface SidebarProps {
     routes: Route[];
     filters: {
         routeId: string | null;
-        timeFilter: number; // in minutes
+        timeFilter: number;
     };
-    setFilters: React.Dispatch<React.SetStateAction<{ 
+    setFilters: React.Dispatch<React.SetStateAction<{
         routeId: string | null;
         timeFilter: number;
     }>>;
@@ -19,9 +19,10 @@ interface SidebarProps {
     setViewMode: React.Dispatch<React.SetStateAction<'live' | 'heatmap'>>;
     selectedVehicleId: string | null;
     onVehicleSelect: (vehicleId: string | null) => void;
+    heatmapTimeFilter: number;
+    setHeatmapTimeFilter: React.Dispatch<React.SetStateAction<number>>;
 }
 
-// Add these preset options
 const TIME_FILTER_OPTIONS = [
     { label: '5 min', value: 5 },
     { label: '10 min', value: 10 },
@@ -35,7 +36,7 @@ const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 const parseUTCTimestamp = (timestampStr: string | null | undefined): Date | null => {
     if (!timestampStr) return null;
-
+    
     try {
         const date = new Date(timestampStr);
         if (isNaN(date.getTime())) return null;
@@ -43,9 +44,7 @@ const parseUTCTimestamp = (timestampStr: string | null | undefined): Date | null
     } catch {
         return null;
     }
-    
 };
-
 
 export function Sidebar({
     vehicles,
@@ -56,65 +55,46 @@ export function Sidebar({
     setViewMode,
     selectedVehicleId,
     onVehicleSelect,
+    heatmapTimeFilter,
+    setHeatmapTimeFilter,
 }: SidebarProps) {
-    // Fetch system stats continuously
     const { data: statsData } = useSWR<StatsResponse>(
-        `${API_BASE_URL}/stats`, 
-        fetcher, 
+        `${API_BASE_URL}/stats`,
+        fetcher,
         { refreshInterval: POLL_INTERVAL_MS }
     );
-    
+
     const [isCollapsed, setIsCollapsed] = useState(false);
     const activeVehicleCount = vehicles.length;
-    
-    // Filter vehicles for display count
+
     const filteredCount = vehicles.filter(v => {
         if (filters.routeId && v.route?.id !== filters.routeId) {
             return false;
         }
         
-        // Time filter check
         if (filters.timeFilter > 0 && v.feed_timestamp) {
             const timestamp = parseUTCTimestamp(v.feed_timestamp);
-
-            if (!timestamp) {
-                return false;
-            }
+            if (!timestamp) return false;
 
             const now = new Date();
             const cutoffTime = new Date(now.getTime() - filters.timeFilter * 60000);
-
-            // debugging code
-            const ageMinutes = (now.getTime() - timestamp.getTime()) / 60000;
-
-            if (vehicles.indexOf(v) < 3) {
-                console.log('Vehicle ${v.vehicle_id}:', {
-                    timestamp: timestamp.toISOString(),
-                    now: now.toISOString(),
-                    cutoff: cutoffTime.toISOString(),
-                    ageMinutes: ageMinutes.toFixed(1),
-                    filterMinutes: filters.timeFilter,
-                    passes: timestamp >= cutoffTime
-                });
-            }
-            
             return timestamp >= cutoffTime;
         }
         
         return true;
     }).length;
-    
+
     const stats = statsData?.stats;
 
     const handleRouteFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const routeId = e.target.value === 'all' ? null : e.target.value;
         setFilters(prev => ({ ...prev, routeId }));
     };
-    
+
     const handleTimeFilterChange = (value: number) => {
         setFilters(prev => ({ ...prev, timeFilter: value }));
     };
-    
+
     const handleCustomTimeFilter = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = parseInt(e.target.value) || 0;
         if (value >= 0) {
@@ -122,65 +102,143 @@ export function Sidebar({
         }
     };
 
+    const handleHeatmapTimeFilterChange = (value: number) => {
+        setHeatmapTimeFilter(value);
+    };
+
+    const handleCustomHeatmapTimeFilter = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = parseInt(e.target.value) || 0;
+        if (value >= 0) {
+            setHeatmapTimeFilter(value);
+        }
+    };
+
     const handleViewModeChange = (mode: 'live' | 'heatmap') => {
         setViewMode(mode);
-        // Clear selection when switching modes
         onVehicleSelect(null);
     };
-    
+
     return (
-        <div className={`flex flex-col h-full bg-dark-bg text-gray-100 transition-all duration-300 ease-in-out ${isCollapsed ? 'w-16' : 'w-80 p-4'}`}>
-            <button 
-                onClick={() => setIsCollapsed(!isCollapsed)}
-                className="p-2 self-end text-primary-accent hover:text-white"
-            >
-                {isCollapsed ? '▶' : '◀'}
-            </button>
-            
+        <div className={`flex flex-col h-full backdrop-blur-2xl bg-white/5 border-r border-white/10 text-gray-100 transition-all duration-300 ease-in-out ${isCollapsed ? 'w-20' : 'w-96'} shadow-glass overflow-hidden`}>
             {!isCollapsed && (
-                <>
-                    <h1 className="text-xl font-bold mb-4 text-primary-accent">Rapid Bus KL Tracking</h1>
+                <div className="flex flex-col h-full overflow-y-auto p-6">
+                    <button 
+                        onClick={() => setIsCollapsed(!isCollapsed)}
+                        className="p-3 self-end text-primary-accent hover:text-white rounded-xl glass-button hover:shadow-glow mb-4"
+                    >
+                        ◀
+                    </button>
+                    
+                    <h1 className="text-2xl font-bold mb-6 text-primary-accent glow-text">
+                        Rapid Bus KL Live Tracking
+                    </h1>
                     
                     {/* Stats Panel */}
-                    <div className="bg-dark-card p-3 rounded-lg mb-4">
-                        <h2 className="text-lg font-semibold mb-2">System Status</h2>
-                        <p className="text-sm">Active Vehicles: <span className="font-mono text-primary-accent">{stats?.active_vehicles || '...'}</span></p>
-                        <p className="text-sm">Total Routes: <span className="font-mono">{stats?.total_routes || '...'}</span></p>
-                        <p className="text-xs text-gray-400 mt-2">Last Update: {formatTimestampToLocal(stats?.last_updated)}</p>
+                    <div className="glass-card glass-card-hover p-5 rounded-2xl mb-5 flex-shrink-0">
+                        <h2 className="text-lg font-semibold mb-4 text-white/90">System Status</h2>
+                        <div className="space-y-3">
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm text-white/70">Active Vehicles</span>
+                                <span className="font-mono text-xl text-primary-accent glow-text">
+                                    {stats?.active_vehicles || '...'}
+                                </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm text-white/70">Total Routes</span>
+                                <span className="font-mono text-lg text-white/90">
+                                    {stats?.total_routes || '...'}
+                                </span>
+                            </div>
+                            <div className="pt-3 border-t border-white/10">
+                                <p className="text-xs text-white/50">
+                                    Last Update: {formatTimestampToLocal(stats?.last_updated)}
+                                </p>
+                            </div>
+                        </div>
                     </div>
                     
                     {/* View Mode Switch */}
-                    <div className="bg-dark-card p-3 rounded-lg mb-4">
-                        <h2 className="font-semibold mb-2">View Mode</h2>
-                        <div className="flex space-x-2">
+                    <div className="glass-card p-5 rounded-2xl mb-5 flex-shrink-0">
+                        <h2 className="font-semibold mb-4 text-white/90">View Mode</h2>
+                        <div className="flex gap-3">
                             <button
                                 onClick={() => handleViewModeChange('live')}
-                                className={`flex-1 p-2 rounded text-sm ${viewMode === 'live' ? 'bg-primary-accent text-dark-bg' : 'bg-gray-600 hover:bg-gray-500'}`}
+                                className={`flex-1 p-3 rounded-xl text-sm font-medium transition-all duration-300 ${
+                                    viewMode === 'live' 
+                                        ? 'bg-primary-accent/20 text-primary-accent border-2 border-primary-accent shadow-glow' 
+                                        : 'glass-button hover:bg-white/10 text-white/70'
+                                }`}
                             >
                                 Live Tracking
                             </button>
                             <button
                                 onClick={() => handleViewModeChange('heatmap')}
-                                className={`flex-1 p-2 rounded text-sm ${viewMode === 'heatmap' ? 'bg-primary-accent text-dark-bg' : 'bg-gray-600 hover:bg-gray-500'}`}
+                                className={`flex-1 p-3 rounded-xl text-sm font-medium transition-all duration-300 ${
+                                    viewMode === 'heatmap' 
+                                        ? 'bg-primary-accent/20 text-primary-accent border-2 border-primary-accent shadow-glow' 
+                                        : 'glass-button hover:bg-white/10 text-white/70'
+                                }`}
                             >
-                                Heatmap (1hr)
+                                Heatmap
                             </button>
                         </div>
                     </div>
                     
+                    {/* Heatmap Time Filter */}
+                    {viewMode === 'heatmap' && (
+                        <div className="glass-card p-5 rounded-2xl mb-5 flex-shrink-0">
+                            <h2 className="font-semibold mb-4 text-white/90">Heatmap Time Range</h2>
+                            
+                            <div>
+                                <label className="block text-sm mb-3 text-white/70">
+                                    Show data from the last
+                                </label>
+                                <div className="flex flex-wrap gap-2 mb-3">
+                                    {TIME_FILTER_OPTIONS.map(option => (
+                                        <button
+                                            key={option.value}
+                                            onClick={() => handleHeatmapTimeFilterChange(option.value)}
+                                            className={`px-4 py-2 text-xs rounded-full font-medium transition-all duration-300 ${
+                                                heatmapTimeFilter === option.value 
+                                                    ? 'bg-primary-accent/20 text-primary-accent border border-primary-accent shadow-glow' 
+                                                    : 'glass-button hover:bg-white/10 text-white/70'
+                                            }`}
+                                        >
+                                            {option.label}
+                                        </button>
+                                    ))}
+                                </div>
+                                
+                                <div className="flex items-center gap-3 mt-3">
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={heatmapTimeFilter}
+                                        onChange={handleCustomHeatmapTimeFilter}
+                                        className="w-24 p-2 glass-input rounded-xl text-white text-sm focus:outline-none"
+                                        placeholder="Custom"
+                                    />
+                                    <span className="text-sm text-white/50">minutes</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    
                     {/* Filters & Controls */}
                     {viewMode === 'live' && (
-                        <div className="bg-dark-card p-3 rounded-lg mb-4">
-                            <h2 className="font-semibold mb-2">Filters</h2>
+                        <div className="glass-card p-5 rounded-2xl mb-5 flex-shrink-0">
+                            <h2 className="font-semibold mb-4 text-white/90">Filters</h2>
                             
                             {/* Route Filter */}
-                            <div className="mb-3">
-                                <label htmlFor="route-filter" className="block text-sm mb-1">Filter by Route:</label>
+                            <div className="mb-5">
+                                <label htmlFor="route-filter" className="block text-sm mb-2 text-white/70">
+                                    Filter by Route
+                                </label>
                                 <select 
                                     id="route-filter"
                                     onChange={handleRouteFilterChange}
                                     value={filters.routeId || 'all'}
-                                    className="w-full p-2 bg-gray-700 text-white rounded text-sm border border-gray-600"
+                                    className="w-full p-3 glass-input rounded-xl text-white text-sm focus:outline-none"
                                 >
                                     <option value="all">All Routes ({activeVehicleCount})</option>
                                     {routes.map(route => (
@@ -192,17 +250,19 @@ export function Sidebar({
                             </div>
                             
                             {/* Time Filter */}
-                            <div className="mt-3">
-                                <label className="block text-sm mb-1">Last Updated Within:</label>
-                                <div className="flex flex-wrap gap-1 mb-2">
+                            <div className="mt-5">
+                                <label className="block text-sm mb-3 text-white/70">
+                                    Last Updated Within
+                                </label>
+                                <div className="flex flex-wrap gap-2 mb-3">
                                     {TIME_FILTER_OPTIONS.map(option => (
                                         <button
                                             key={option.value}
                                             onClick={() => handleTimeFilterChange(option.value)}
-                                            className={`px-2 py-1 text-xs rounded ${
+                                            className={`px-4 py-2 text-xs rounded-full font-medium transition-all duration-300 ${
                                                 filters.timeFilter === option.value 
-                                                    ? 'bg-primary-accent text-dark-bg' 
-                                                    : 'bg-gray-600 hover:bg-gray-500'
+                                                    ? 'bg-primary-accent/20 text-primary-accent border border-primary-accent shadow-glow' 
+                                                    : 'glass-button hover:bg-white/10 text-white/70'
                                             }`}
                                         >
                                             {option.label}
@@ -210,49 +270,71 @@ export function Sidebar({
                                     ))}
                                 </div>
                                 
-                                <div className="flex items-center mt-1">
+                                <div className="flex items-center gap-3 mt-3">
                                     <input
                                         type="number"
                                         min="0"
                                         value={filters.timeFilter}
                                         onChange={handleCustomTimeFilter}
-                                        className="w-20 p-1 bg-gray-700 text-white rounded text-sm border border-gray-600 mr-2"
+                                        className="w-24 p-2 glass-input rounded-xl text-white text-sm focus:outline-none"
                                         placeholder="Custom"
                                     />
-                                    <span className="text-xs text-gray-400">minutes</span>
+                                    <span className="text-sm text-white/50">minutes</span>
                                 </div>
                             </div>
                             
-                            <p className="text-xs mt-2 text-gray-400">
-                                Showing {filteredCount} / {activeVehicleCount} vehicles updated in the last {filters.timeFilter} minutes.
-                            </p>
+                            <div className="mt-4 p-3 bg-white/5 rounded-xl border border-white/10">
+                                <p className="text-xs text-white/70">
+                                    Showing <span className="text-primary-accent font-semibold">{filteredCount}</span> / {activeVehicleCount} vehicles
+                                </p>
+                            </div>
                         </div>
                     )}
                     
                     {/* Selected Vehicle Info */}
-                    <div className="bg-dark-card p-3 rounded-lg flex-1 overflow-y-auto">
-                        <h2 className="font-semibold mb-2">
-                            {selectedVehicleId ? `Selected Vehicle: ${selectedVehicleId}` : "Click a vehicle to trace"}
+                    <div className="glass-card p-5 rounded-2xl flex-shrink-0">
+                        <h2 className="font-semibold mb-3 text-white/90">
+                            {selectedVehicleId ? `Vehicle ${selectedVehicleId}` : "Click a vehicle"}
                         </h2>
-                        {selectedVehicleId && (
+                        {selectedVehicleId ? (
                             <>
-                                <p className="text-sm text-primary-accent mb-2">Showing historical trace on map.</p>
+                                <p className="text-sm text-primary-accent mb-4">
+                                    Showing historical trace on map
+                                </p>
                                 <button
                                     onClick={() => onVehicleSelect(null)}
-                                    className="w-full p-1 mt-2 bg-red-600 hover:bg-red-700 rounded text-sm"
+                                    className="w-full p-3 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-xl text-sm text-red-300 font-medium transition-all duration-300 hover:shadow-glow"
                                 >
                                     Clear Selection
                                 </button>
                             </>
+                        ) : (
+                            <p className="text-sm text-white/50">
+                                Select a vehicle on the map to view its historical trace
+                            </p>
                         )}
                     </div>
-                </>
+                </div>
             )}
             
             {isCollapsed && (
-                <div className="flex flex-col items-center mt-8 space-y-4">
-                    <span className="text-sm transform rotate-90 whitespace-nowrap">Visualizer</span>
-                    <span className="text-sm font-mono text-primary-accent">{activeVehicleCount}</span>
+                <div className="flex flex-col items-center h-full p-4">
+                    <button 
+                        onClick={() => setIsCollapsed(!isCollapsed)}
+                        className="p-3 text-primary-accent hover:text-white rounded-xl glass-button hover:shadow-glow mb-8"
+                    >
+                        ▶
+                    </button>
+                    <div className="flex flex-col items-center mt-8 space-y-6">
+                        <span className="text-xs transform rotate-90 whitespace-nowrap text-white/70">
+                            Transit
+                        </span>
+                        <div className="glass-card p-3 rounded-xl">
+                            <span className="text-lg font-mono text-primary-accent glow-text">
+                                {activeVehicleCount}
+                            </span>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
