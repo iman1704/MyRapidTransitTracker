@@ -1,0 +1,36 @@
+# DB only docker-compose for development tests
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    platform: linux/arm64
+    hostname: postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME:-gtfs_realtime}
+      POSTGRES_USER: ${DB_USER:-gtfs_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-gtfs_password}
+      POSTGRES_INITDB_ARGS: "-E UTF8"
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - /data/postgres:/var/lib/postgresql/data
+    networks:
+      - gtfs-network
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-gtfs_user} -d ${DB_NAME:-gtfs_realtime}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+networks:
+  gtfs-network:
+    name: gtfs-network
+    driver: overlay

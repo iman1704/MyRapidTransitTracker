@@ -1,0 +1,225 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Creates a basic Docker Swarm cluster with one manager and one worker EC2 instance.
+  This version includes security group rules for the ports defined in the docker-compose file.
+
+Parameters:
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instances.
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: Must be the name of an existing EC2 KeyPair.
+
+  ManagerInstanceType:
+    Description: EC2 instance type for the Swarm manager node.
+    Type: String
+    Default: t3.micro
+
+  WorkerInstanceType:
+    Description: EC2 instance type for the Swarm worker node.
+    Type: String
+    Default: t3.medium
+
+  AllowedIPForKafka:
+    Description: >-
+      The IP address range that can connect to the Kafka broker on port 9092.
+      It is highly recommended to lock this down to your IP address (e.g., 50.100.150.200/32).
+    Type: String
+    Default: "0.0.0.0/0"
+
+Resources:
+  # ------------------------------------------------------------#
+  #  Networking (No changes in this section)
+  # ------------------------------------------------------------#
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-VPC
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-IGW
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-PublicSubnet
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-PrivateSubnet
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-PublicRouteTable
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+  ElasticIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt ElasticIP.AllocationId
+      SubnetId: !Ref PublicSubnet
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-NAT-Gateway
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-PrivateRouteTable
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+  PrivateSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet
+      RouteTableId: !Ref PrivateRouteTable
+
+  # ------------------------------------------------------------#
+  #  Security Groups (Updated Section)
+  # ------------------------------------------------------------#
+  ManagerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Enable Swarm manager access"
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp; FromPort: 22; ToPort: 22; CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp; FromPort: 2377; ToPort: 2377; CidrIp: 10.0.0.0/16
+        - IpProtocol: tcp; FromPort: 7946; ToPort: 7946; CidrIp: 10.0.0.0/16
+        - IpProtocol: udp; FromPort: 7946; ToPort: 7946; CidrIp: 10.0.0.0/16
+        - IpProtocol: udp; FromPort: 4789; ToPort: 4789; CidrIp: 10.0.0.0/16
+
+  WorkerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Enable Swarm worker access and application ports"
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        # SSH access only from the manager instance for security
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          SourceSecurityGroupId: !Ref ManagerSecurityGroup
+        
+        # Required Swarm communication ports (internal VPC traffic)
+        - IpProtocol: tcp; FromPort: 7946; ToPort: 7946; CidrIp: 10.0.0.0/16
+        - IpProtocol: udp; FromPort: 7946; ToPort: 7946; CidrIp: 10.0.0.0/16
+        - IpProtocol: udp; FromPort: 4789; ToPort: 4789; CidrIp: 10.0.0.0/16
+
+        # --- Ports from docker-compose.yml ---
+        # Port for the Web App (publicly accessible)
+        - IpProtocol: tcp
+          FromPort: 5001
+          ToPort: 5001
+          CidrIp: 0.0.0.0/0
+
+        # Port for Kafka (restricted access recommended)
+        - IpProtocol: tcp
+          FromPort: 9092
+          ToPort: 9092
+          CidrIp: !Ref AllowedIPForKafka
+
+  # ------------------------------------------------------------#
+  #  EC2 Instances (No changes in this section)
+  # ------------------------------------------------------------#
+  ManagerInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref ManagerInstanceType
+      KeyName: !Ref KeyName
+      ImageId: "ami-0c55b159cbfafe1f0" # Amazon Linux 2 AMI for us-east-1 (change if needed)
+      SecurityGroupIds:
+        - !Ref ManagerSecurityGroup
+      SubnetId: !Ref PublicSubnet
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum update -y
+          amazon-linux-extras install docker -y
+          systemctl enable docker
+          systemctl start docker
+          usermod -aG docker ec2-user
+          docker swarm init --advertise-addr $(hostname -i)
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Manager
+
+  WorkerInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref WorkerInstanceType
+      KeyName: !Ref KeyName
+      ImageId: "ami-0c55b159cbfafe1f0" # Amazon Linux 2 AMI for us-east-1 (change if needed)
+      SecurityGroupIds:
+        - !Ref WorkerSecurityGroup
+      SubnetId: !Ref PrivateSubnet
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          yum update -y
+          amazon-linux-extras install docker -y
+          systemctl enable docker
+          systemctl start docker
+          usermod -aG docker ec2-user
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Worker
+
+Outputs:
+  ManagerPublicIP:
+    Description: "Public IP address of the Swarm Manager. Use this to SSH."
+    Value: !GetAtt ManagerInstance.PublicIp
+  ManagerPrivateIP:
+    Description: "Private IP address of the Swarm Manager."
+    Value: !GetAtt ManagerInstance.PrivateIp
+  WorkerPrivateIP:
+    Description: "Private IP address of the Swarm Worker."
+    Value: !GetAtt WorkerInstance.PrivateIp
+  SSHCommand:
+    Description: "Command to SSH into the Swarm Manager"
+    Value: !Sub "ssh -i YOUR_PEM_FILE.pem ec2-user@${ManagerInstance.PublicIp}"

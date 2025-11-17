@@ -1,0 +1,194 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # ZOOKEEPER - Required for Kafka
+  # ============================================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0 
+    platform: linux/arm64
+    hostname: zookeeper
+    container_name: gtfs-zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - gtfs-network
+    restart: unless-stopped
+
+  # ============================================
+  # KAFKA - Message Broker
+  # ============================================
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    platform: linux/arm64
+    hostname: kafka
+    container_name: gtfs-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168
+    networks:
+      - gtfs-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "kafka:29092", "--list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ============================================
+  # REDIS - Cache & Session Store
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    platform: linux/arm64
+    hostname: redis
+    container_name: gtfs-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis-data:/data
+    networks:
+      - gtfs-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ============================================
+  # DATA INGESTION - GTFS Feed Producer
+  # ============================================
+  data-ingestion:
+    build:
+      context: .
+      dockerfile: Dockerfile.ingestion
+    platform: linux/arm64
+    container_name: gtfs-data-ingestion
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_INPUT_TOPIC=${KAFKA_INPUT_TOPIC:-gtfs-realtime-raw}
+      - GTFS_API_URL=${GTFS_API_URL}
+      - GTFS_API_KEY=${GTFS_API_KEY:-}
+      - POLLING_INTERVAL=${POLLING_INTERVAL:-30}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - PYTHONUNBUFFERED=1
+    networks:
+      - gtfs-network
+    restart: unless-stopped
+
+  # ============================================
+  # RAW CONSUMER - Processes raw GTFS data
+  # ============================================
+  raw-consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile.consumer
+    platform: linux/arm64
+    container_name: gtfs-raw-consumer
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_INPUT_TOPIC=${KAFKA_INPUT_TOPIC:-gtfs-realtime-raw}
+      - KAFKA_CONSUMER_GROUP_RAW=${KAFKA_CONSUMER_GROUP_RAW:-raw-consumer-group}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - PYTHONUNBUFFERED=1
+    networks:
+      - gtfs-network
+    restart: unless-stopped
+
+  # ============================================
+  # DATABASE WRITER - Writes to PostgreSQL
+  # ============================================
+  database-writer:
+    build:
+      context: .
+      dockerfile: Dockerfile.writer
+    platform: linux/arm64
+    container_name: gtfs-database-writer
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_OUTPUT_TOPIC=${KAFKA_OUTPUT_TOPIC:-gtfs-realtime-parsed}
+      - DB_HOST=${DB_HOST:-postgres}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-gtfs_realtime}
+      - DB_USER=${DB_USER:-gtfs_user}
+      - DB_PASSWORD=${DB_PASSWORD:-gtfs_password}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - PYTHONUNBUFFERED=1
+    networks:
+      - gtfs-network
+    restart: unless-stopped
+
+  # ============================================
+  # VISUALIZATION - Web Application
+  # ============================================
+  web-app:
+    build:
+      context: .
+      dockerfile: MyRapidTransitTracker/Dockerfile.viz
+    platform: linux/arm64
+    container_name: gtfs-visualization
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "5001:8000"
+    environment:
+      - DB_HOST=${DB_HOST:-postgres}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-rapid-bus-kl-realtime}
+      - DB_USER=${DB_USER:-Iman}
+      - DB_PASSWORD=${DB_PASSWORD:-IMAN1704}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - PYTHONUNBUFFERED=1
+    command: ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "debug"]
+    networks:
+      - gtfs-network
+    restart: unless-stopped
+
+# ============================================
+# NETWORKS
+# ============================================
+networks:
+  gtfs-network:
+    name: gtfs-network
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: ${NETWORK_SUBNET:-172.25.0.0/16}
+
+# ============================================
+# VOLUMES
+# ============================================
+volumes:
+  redis-data:
+    driver: local
