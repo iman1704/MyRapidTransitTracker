@@ -8,9 +8,12 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        'dark-bg': '#1e293b', // Slate-800 equivalent
-        'dark-card': '#334155', // Slate-700 equivalent
-        'primary-accent': '#06b6d4', // Cyan-500
+        'dark-bg': '#0a0e1a',
+        'primary-accent': '#06b6d4',
+      },
+      boxShadow: {
+        'glow': '0 0 20px rgba(6, 182, 212, 0.3)',
+        'glow-lg': '0 0 30px rgba(6, 182, 212, 0.5)',
       },
     },
   },

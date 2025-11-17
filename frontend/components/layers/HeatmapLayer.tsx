@@ -1,101 +1,99 @@
 // frontend/components/layers/HeatmapLayer.tsx
 
 import L from 'leaflet';
-// Add this import line for React Hooks
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMap } from 'react-leaflet';
 import { API_BASE_URL } from '../../lib/constants';
 import { HistoricalPositionsResponse } from '../../types/api';
 
-// NOTE: We need to import the heatmap library imperatively in a real app:
-// import 'leaflet.heat';
+// 1. Import the leaflet.heat plugin to attach it to the L object
+import 'leaflet.heat';
 
 interface HeatmapLayerProps {
-    isActive: boolean;
+  isActive: boolean;
+  timeFilter: number; // Time filter in minutes
 }
 
-const fetcher = async (url: string) => {
-    // Calculate time range (last 1 hour)
-    const end_time = new Date();
-    const start_time = new Date(end_time.getTime() - 60 * 60 * 1000);
+const fetcher = async (url: string, timeFilterMinutes: number) => {
+  const end_time = new Date();
+  const start_time = new Date(end_time.getTime() - timeFilterMinutes * 60 * 1000);
 
-    const params = new URLSearchParams({
-        start: start_time.toISOString(),
-        end: end_time.toISOString()
-    });
+  const params = new URLSearchParams({
+    start: start_time.toISOString(),
+    end: end_time.toISOString()
+  });
 
-    const response = await fetch(`${url}?${params.toString()}`);
-    if (!response.ok) {
-        throw new Error('Failed to fetch historical data');
-    }
-    return response.json();
+  const response = await fetch(`${url}?${params.toString()}`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch historical data');
+  }
+  return response.json();
 };
 
-export function HeatmapLayer({ isActive }: HeatmapLayerProps) {
-    const map = useMap();
-    const [heatmapData, setHeatmapData] = useState<L.LatLngExpression[]>([]);
-    const heatmapLayerRef = useRef<L.Layer | null>(null);
+export function HeatmapLayer({ isActive, timeFilter }: HeatmapLayerProps) {
+  const map = useMap();
+  const [heatmapData, setHeatmapData] = useState<L.LatLngExpression[]>([]);
+  const heatmapLayerRef = useRef<L.HeatLayer | null>(null); // Use the correct type: L.HeatLayer
 
-    // Effect 1: Fetch historical data when active
-    useEffect(() => {
-        if (!isActive) {
-            setHeatmapData([]);
-            return;
+  // Effect 1: Fetch historical data when active or timeFilter changes
+  useEffect(() => {
+    if (!isActive) {
+      setHeatmapData([]);
+      return;
+    }
+
+    console.log(`Fetching historical data for heatmap (last ${timeFilter} minutes)...`);
+    fetcher(`${API_BASE_URL}/vehicles/historical`, timeFilter)
+      .then((data: HistoricalPositionsResponse) => {
+        if (data.success) {
+          // Use a higher default intensity for a more visible effect
+          const points = data.positions.map(p =>
+            [p.latitude, p.longitude, 1.0] // Lat, Lng, Intensity (using 1.0 now)
+          ) as L.LatLngExpression[];
+          setHeatmapData(points);
+          console.log(`Fetched ${data.count} historical positions.`);
         }
+      })
+      .catch(err => console.error("Heatmap fetch error:", err));
 
-        console.log("Fetching historical data for heatmap...");
-        fetcher(`${API_BASE_URL}/vehicles/historical`)
-            .then((data: HistoricalPositionsResponse) => {
-                if (data.success) {
-                    const points = data.positions.map(p => 
-                        [p.latitude, p.longitude, 0.5] // Lat, Lng, Intensity (0.5)
-                    ) as L.LatLngExpression[];
-                    setHeatmapData(points);
-                    console.log(`Fetched ${data.count} historical positions.`);
-                }
-            })
-            .catch(err => console.error("Heatmap fetch error:", err));
+  }, [isActive, timeFilter]);
 
-    }, [isActive]);
+  // Effect 2: Manage the Leaflet Heat Layer imperatively
+  useEffect(() => {
+    if (!map) return;
 
-    // Effect 2: Manage the Leaflet Heat Layer imperatively
-    useEffect(() => {
-        if (!map) return;
+    // Cleanup previous layer
+    if (heatmapLayerRef.current) {
+      map.removeLayer(heatmapLayerRef.current);
+      heatmapLayerRef.current = null;
+    }
 
-        // Cleanup previous layer
-        if (heatmapLayerRef.current) {
-            map.removeLayer(heatmapLayerRef.current);
-            heatmapLayerRef.current = null;
-        }
+    if (isActive && heatmapData.length > 0) {
+      // 2. Define the custom gradient to match the reference image
+      // Black -> Orange -> Yellow -> White
+      const gradient = {
+        0.1: '#1a1a1a',  // Start with a very dark, near-black
+        0.4: '#d95f0e',  // Dark Orange
+        0.6: '#fec44f',  // Orange-Yellow
+        0.8: '#ffffb2',  // Bright Yellow
+        1.0: '#ffffff'   // White hot center
+      };
 
-        if (isActive && heatmapData.length > 0) {
-            // NOTE: L.heatLayer is provided by leaflet.heat plugin
-            const heatLayer = L.layerGroup().addTo(map); // Placeholder for L.heatLayer(heatmapData).addTo(map);
-            
-            // Simulation visibility
-            heatmapData.slice(0, 500).forEach(point => {
-                const [lat, lng] = point as [number, number];
-                L.circleMarker([lat, lng], {
-                    radius: 2,
-                    fillColor: '#f03',
-                    color: '#f03',
-                    weight: 0,
-                    fillOpacity: 0.5
-                }).addTo(heatLayer);
-            });
+      // 3. Create the L.heatLayer with custom options
+      const heatLayer = L.heatLayer(heatmapData, {
+        radius: 7,         // Adjust for desired point influence size
+        blur: 12,           // Adjust for smoothness
+        maxZoom: 18,        // The zoom level at which the points reach maximum intensity
+        gradient: gradient, // Apply our custom gradient
+      }).addTo(map);
 
-            heatmapLayerRef.current = heatLayer;
-            console.log("Heatmap layer added to map.");
-        }
-        
-        return () => {
-             if (heatmapLayerRef.current) {
-                map.removeLayer(heatmapLayerRef.current);
-                heatmapLayerRef.current = null;
-            }
-        };
+      heatmapLayerRef.current = heatLayer;
+      console.log("Heatmap layer added to map.");
+    }
 
-    }, [map, isActive, heatmapData]);
+    // No return function needed here as the cleanup is at the start of the effect
 
-    return null;
+  }, [map, isActive, heatmapData]);
+
+  return null;
 }
