@@ -36,6 +36,7 @@ docker-compose*.yml
 docs/
 *.txt
 !requirements.txt
+!README.md
 
 # CI/CD
 .github/
