@@ -38,6 +38,10 @@ dependencies = [
     "tenacity>=9.1.2",
     "uvicorn>=0.37.0",
 ]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["MyRapidTransitTracker*"]
+exclude = ["tests*"]
 
 [project.urls]
 Homepage = "https://iman1704.github.io/MyRapidTransitTracker/"
@@ -49,11 +53,11 @@ dev = [
     "pytest>=7.2.0",
     "pre-commit>=2.20.0",
     "tox-uv>=1.11.3",
-    
+
     "mypy>=0.991",
-    
+
     "ruff>=0.11.5",
-    
+
 ]
 
 [build-system]
@@ -129,5 +133,3 @@ project-includes = ["project_alpha"]
 
 [tool.ruff.format]
 preview = true
-
-

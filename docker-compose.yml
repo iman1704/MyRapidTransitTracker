@@ -1,11 +1,11 @@
-version: '3.8'
+version: "3.8"
 
 services:
   # ============================================
   # ZOOKEEPER - Required for Kafka
   # ============================================
   zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0 
+    image: confluentinc/cp-zookeeper:7.5.0
     platform: linux/arm64
     hostname: zookeeper
     container_name: gtfs-zookeeper
@@ -33,7 +33,7 @@ services:
       - "29092:29092"
     environment:
       KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://0.0.0.0:9092
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
@@ -45,7 +45,8 @@ services:
       - gtfs-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "kafka-topics", "--bootstrap-server", "kafka:29092", "--list"]
+      test:
+        ["CMD", "kafka-topics", "--bootstrap-server", "kafka:29092", "--list"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -72,7 +73,11 @@ services:
       - gtfs-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-gtfs_user} -d ${DB_NAME:-gtfs_realtime}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${DB_USER:-gtfs_user} -d ${DB_NAME:-gtfs_realtime}",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -102,14 +107,26 @@ services:
       start_period: 10s
 
   # ============================================
+  # BASE IMAGE - Base container image
+  # ============================================
+  base-builder:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.base
+    platform: linux/arm64
+    container_name: gtfs-base:latest
+    profiles:
+      - build
+
+  # ============================================
   # DATA INGESTION - GTFS Feed Producer
   # ============================================
   data-ingestion:
     build:
       context: .
-      dockerfile: Dockerfile.ingestion
+      dockerfile: docker/Dockerfile.ingestion
     platform: linux/arm64
-    container_name: gtfs-data-ingestion
+    container_name: gtfs-ingestion:latest
     depends_on:
       kafka:
         condition: service_healthy
@@ -131,9 +148,9 @@ services:
   raw-consumer:
     build:
       context: .
-      dockerfile: Dockerfile.consumer
+      dockerfile: docker/Dockerfile.consumer
     platform: linux/arm64
-    container_name: gtfs-raw-consumer
+    container_name: gtfs-consumer:latest
     depends_on:
       kafka:
         condition: service_healthy
@@ -153,9 +170,9 @@ services:
   database-writer:
     build:
       context: .
-      dockerfile: Dockerfile.writer
+      dockerfile: docker/Dockerfile.writer
     platform: linux/arm64
-    container_name: gtfs-database-writer
+    container_name: gtfs-writer:latest
     depends_on:
       kafka:
         condition: service_healthy
@@ -176,14 +193,14 @@ services:
     restart: unless-stopped
 
   # ============================================
-  # VISUALIZATION - Web Application
+  # API ENDPOINT - Web Application
   # ============================================
   web-app:
     build:
       context: .
-      dockerfile: MyRapidTransitTracker/Dockerfile.viz
+      dockerfile: docker/Dockerfile.viz
     platform: linux/arm64
-    container_name: gtfs-visualization
+    container_name: gtfs-endpoint:latest
     depends_on:
       postgres:
         condition: service_healthy
@@ -200,7 +217,17 @@ services:
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - PYTHONUNBUFFERED=1
-    command: ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "debug"]
+    command:
+      [
+        "uvicorn",
+        "app:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--log-level",
+        "debug",
+      ]
     networks:
       - gtfs-network
     restart: unless-stopped
