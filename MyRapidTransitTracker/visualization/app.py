@@ -94,15 +94,12 @@ class StatsResponseSchema(SuccessResponse):
 class RoutesResponseSchema(SuccessResponse):
     routes: List[RouteSchema]
 
+allowed_origins = [origin.strip() for origin in settings.CORS_ORIGINS.split(',')]
     
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost",       # Base localhost
-        "http://127.0.0.1",       # Base localhost IP
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],

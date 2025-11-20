@@ -63,7 +63,7 @@ class Settings(BaseSettings):
     # Additional settings
     FLASK_SECRET_KEY: str = "dev-secret-key-change-in-production"
     NETWORK_SUBNET: str = "172.25.0.0/16"
-
+    CORS_ORIGINS: str = "http://localhost:3000, http://127.0.0.1:3000"
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=False,
