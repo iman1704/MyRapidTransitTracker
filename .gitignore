@@ -214,3 +214,4 @@ gtfs_sample_*.json
 
 *.pem
 !frontend/lib/
+docker-stack.yml
