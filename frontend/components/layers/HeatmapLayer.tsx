@@ -32,7 +32,7 @@ const fetcher = async (url: string, timeFilterMinutes: number) => {
 
 export function HeatmapLayer({ isActive, timeFilter }: HeatmapLayerProps) {
   const map = useMap();
-  const [heatmapData, setHeatmapData] = useState<L.LatLngExpression[]>([]);
+  const [heatmapData, setHeatmapData] = useState<any[]>([]);
   const heatmapLayerRef = useRef<L.HeatLayer | null>(null); // Use the correct type: L.HeatLayer
 
   // Effect 1: Fetch historical data when active or timeFilter changes
@@ -46,10 +46,10 @@ export function HeatmapLayer({ isActive, timeFilter }: HeatmapLayerProps) {
     fetcher(`${API_BASE_URL}/vehicles/historical`, timeFilter)
       .then((data: HistoricalPositionsResponse) => {
         if (data.success) {
-          // Use a higher default intensity for a more visible effect
+          // Return plain array [lat, lng, intensity]
           const points = data.positions.map(p =>
-            [p.latitude, p.longitude, 1.0] // Lat, Lng, Intensity (using 1.0 now)
-          ) as L.LatLngExpression[];
+            [p.latitude, p.longitude, 1.0]
+          );
           setHeatmapData(points);
           console.log(`Fetched ${data.count} historical positions.`);
         }
@@ -80,7 +80,7 @@ export function HeatmapLayer({ isActive, timeFilter }: HeatmapLayerProps) {
       };
 
       // 3. Create the L.heatLayer with custom options
-      const heatLayer = L.heatLayer(heatmapData, {
+      const heatLayer = (L as any).heatLayer(heatmapData, {
         radius: 7,         // Adjust for desired point influence size
         blur: 12,           // Adjust for smoothness
         maxZoom: 18,        // The zoom level at which the points reach maximum intensity
