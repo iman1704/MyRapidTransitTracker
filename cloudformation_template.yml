@@ -1,35 +1,122 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: >
-  Creates a basic Docker Swarm cluster with one manager and one worker EC2 instance.
-  This version includes security group rules for the ports defined in the docker-compose file.
-
+Description: |
+  Creates a Docker Swarm cluster for microservices with one manager and two worker EC2 instances.
+  Cost-optimized for portfolio/demonstration - all instances in public subnet (no NAT Gateway).
+  Fixed IAM Roles and Permissions.
 Parameters:
   KeyName:
     Description: Name of an existing EC2 KeyPair to enable SSH access to the instances.
     Type: AWS::EC2::KeyPair::KeyName
     ConstraintDescription: Must be the name of an existing EC2 KeyPair.
-
   ManagerInstanceType:
     Description: EC2 instance type for the Swarm manager node.
     Type: String
-    Default: t3.micro
-
+    Default: t4g.small
   WorkerInstanceType:
-    Description: EC2 instance type for the Swarm worker node.
+    Description: EC2 instance type for the Swarm worker nodes.
     Type: String
-    Default: t3.medium
-
-  AllowedIPForKafka:
-    Description: >-
-      The IP address range that can connect to the Kafka broker on port 9092.
-      It is highly recommended to lock this down to your IP address (e.g., 50.100.150.200/32).
+    Default: t4g.micro
+  PostgreSQLVolumeSize:
+    Description: Size of the PostgreSQL EBS volume in GB.
+    Type: Number
+    Default: 10
+    MinValue: 8
+    MaxValue: 15
+  KafkaVolumeSize:
+    Description: Size of the Kafka EBS volume in GB.
+    Type: Number
+    Default: 10
+    MinValue: 8
+    MaxValue: 15
+  RedisVolumeSize:
+    Description: Size of the Redis EBS volume in GB.
+    Type: Number
+    Default: 8
+    MinValue: 8
+    MaxValue: 15
+  ZookeeperVolumeSize:
+    Description: Size of Zookeeper EBS volume in GB
+    Type: Number
+    Default: 8
+    MinValue: 5
+    MaxValue: 12
+  AllowSSHFrom:
+    Description: IP address range allowed to SSH (use your IP for better security, e.g., 1.2.3.4/32)
     Type: String
-    Default: "0.0.0.0/0"
-
+    Default: 0.0.0.0/0
 Resources:
-  # ------------------------------------------------------------#
-  #  Networking (No changes in this section)
-  # ------------------------------------------------------------#
+  # --- IAM ROLES ---
+  ManagerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: SwarmManagerPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:PutParameter
+                  - ssm:GetParameter
+                Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${AWS::StackName}/swarm/join-token
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                  - kms:Encrypt
+                Resource: !Sub arn:aws:kms:${AWS::Region}:${AWS::AccountId}:alias/aws/ssm
+
+  WorkerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: SwarmWorkerPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${AWS::StackName}/swarm/join-token
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                Resource: !Sub arn:aws:kms:${AWS::Region}:${AWS::AccountId}:alias/aws/ssm
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeInstances
+                Resource: "*"
+
+  ManagerInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref ManagerRole
+
+  WorkerInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref WorkerRole
+
+  # --- NETWORK ---
   VPC:
     Type: AWS::EC2::VPC
     Properties:
@@ -55,20 +142,13 @@ Resources:
     Properties:
       VpcId: !Ref VPC
       CidrBlock: 10.0.1.0/24
-      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs ''
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
           Value: !Sub ${AWS::StackName}-PublicSubnet
-  PrivateSubnet:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      CidrBlock: 10.0.2.0/24
-      AvailabilityZone: !Select [ 0, !GetAZs '' ]
-      Tags:
-        - Key: Name
-          Value: !Sub ${AWS::StackName}-PrivateSubnet
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -88,138 +168,456 @@ Resources:
     Properties:
       SubnetId: !Ref PublicSubnet
       RouteTableId: !Ref PublicRouteTable
-  ElasticIP:
+  ManagerEIP:
     Type: AWS::EC2::EIP
     Properties:
       Domain: vpc
-  NatGateway:
-    Type: AWS::EC2::NatGateway
-    Properties:
-      AllocationId: !GetAtt ElasticIP.AllocationId
-      SubnetId: !Ref PublicSubnet
       Tags:
         - Key: Name
-          Value: !Sub ${AWS::StackName}-NAT-Gateway
-  PrivateRouteTable:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref VPC
-      Tags:
-        - Key: Name
-          Value: !Sub ${AWS::StackName}-PrivateRouteTable
-  PrivateRoute:
-    Type: AWS::EC2::Route
-    Properties:
-      RouteTableId: !Ref PrivateRouteTable
-      DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !Ref NatGateway
-  PrivateSubnetRouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref PrivateSubnet
-      RouteTableId: !Ref PrivateRouteTable
-
-  # ------------------------------------------------------------#
-  #  Security Groups (Updated Section)
-  # ------------------------------------------------------------#
-  ManagerSecurityGroup:
+          Value: !Sub ${AWS::StackName}-Manager-EIP
+  SwarmSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: "Enable Swarm manager access"
+      GroupDescription: Enable Swarm and microservices access for all nodes
       VpcId: !Ref VPC
       SecurityGroupIngress:
-        - IpProtocol: tcp; FromPort: 22; ToPort: 22; CidrIp: 0.0.0.0/0
-        - IpProtocol: tcp; FromPort: 2377; ToPort: 2377; CidrIp: 10.0.0.0/16
-        - IpProtocol: tcp; FromPort: 7946; ToPort: 7946; CidrIp: 10.0.0.0/16
-        - IpProtocol: udp; FromPort: 7946; ToPort: 7946; CidrIp: 10.0.0.0/16
-        - IpProtocol: udp; FromPort: 4789; ToPort: 4789; CidrIp: 10.0.0.0/16
-
-  WorkerSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: "Enable Swarm worker access and application ports"
-      VpcId: !Ref VPC
-      SecurityGroupIngress:
-        # SSH access only from the manager instance for security
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
-          SourceSecurityGroupId: !Ref ManagerSecurityGroup
-        
-        # Required Swarm communication ports (internal VPC traffic)
-        - IpProtocol: tcp; FromPort: 7946; ToPort: 7946; CidrIp: 10.0.0.0/16
-        - IpProtocol: udp; FromPort: 7946; ToPort: 7946; CidrIp: 10.0.0.0/16
-        - IpProtocol: udp; FromPort: 4789; ToPort: 4789; CidrIp: 10.0.0.0/16
-
-        # --- Ports from docker-compose.yml ---
-        # Port for the Web App (publicly accessible)
+          CidrIp: !Ref AllowSSHFrom
         - IpProtocol: tcp
-          FromPort: 5001
-          ToPort: 5001
+          FromPort: 8080
+          ToPort: 8080
           CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-SwarmSG
+  SwarmInternalTraffic:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref SwarmSecurityGroup
+      IpProtocol: -1
+      SourceSecurityGroupId: !Ref SwarmSecurityGroup
+  
+  # --- VOLUMES ---
+  PostgreSQLVolume:
+    Type: AWS::EC2::Volume
+    Properties:
+      Size: !Ref PostgreSQLVolumeSize
+      VolumeType: gp3
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs ''
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-PostgreSQL-Volume
+  KafkaVolume:
+    Type: AWS::EC2::Volume
+    Properties:
+      Size: !Ref KafkaVolumeSize
+      VolumeType: gp3
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs ''
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Kafka-Volume
+  RedisVolume:
+    Type: AWS::EC2::Volume
+    Properties:
+      Size: !Ref RedisVolumeSize
+      VolumeType: gp3
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs ''
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Redis-Volume
+  ZookeeperVolume:
+    Type: AWS::EC2::Volume
+    Properties:
+      Size: !Ref ZookeeperVolumeSize
+      VolumeType: gp3
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs ""
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Zookeeper-Volume
 
-        # Port for Kafka (restricted access recommended)
-        - IpProtocol: tcp
-          FromPort: 9092
-          ToPort: 9092
-          CidrIp: !Ref AllowedIPForKafka
-
-  # ------------------------------------------------------------#
-  #  EC2 Instances (No changes in this section)
-  # ------------------------------------------------------------#
+  # --- INSTANCES ---
   ManagerInstance:
     Type: AWS::EC2::Instance
     Properties:
+      IamInstanceProfile: !Ref ManagerInstanceProfile
       InstanceType: !Ref ManagerInstanceType
       KeyName: !Ref KeyName
-      ImageId: "ami-0c55b159cbfafe1f0" # Amazon Linux 2 AMI for us-east-1 (change if needed)
+      ImageId: ami-015b994979bf6246a
       SecurityGroupIds:
-        - !Ref ManagerSecurityGroup
+        - !Ref SwarmSecurityGroup
       SubnetId: !Ref PublicSubnet
-      UserData:
-        Fn::Base64: !Sub |
+      UserData: !Base64
+        Fn::Sub: |
           #!/bin/bash
-          yum update -y
-          amazon-linux-extras install docker -y
+          set -e
+          
+          # Log all output for debugging
+          exec > >(tee /var/log/user-data.log)
+          exec 2>&1
+          
+          echo "Starting user-data script..."
+
+          # Install docker and nvme-cli
+          dnf update -y
+          dnf install -y aws-cli docker nvme-cli
           systemctl enable docker
           systemctl start docker
           usermod -aG docker ec2-user
-          docker swarm init --advertise-addr $(hostname -i)
+
+          # Function to wait for a volume, map it, and mount it
+          setup_volume() {
+            local requested_device=$1 
+            local mount_point=$2
+            local owner=$3
+
+            echo "=== Setting up volume for $requested_device ==="
+            echo "Mount point: $mount_point"
+            echo "Owner: $owner"
+            
+            local real_device=""
+            local max_retries=60
+            local count=0
+
+            while [ -z "$real_device" ] && [ $count -lt $max_retries ]; do
+              echo "Attempt $((count+1))/$max_retries to find device..."
+              
+              # Try legacy device name first
+              if [ -b "$requested_device" ]; then
+                echo "Found legacy device: $requested_device"
+                real_device=$requested_device
+              else
+                # For NVMe instances, scan all NVMe devices
+                echo "Scanning NVMe devices..."
+                for nvme_dev in /dev/nvme*n1; do
+                  if [ -b "$nvme_dev" ]; then
+                    # Skip the root device (nvme0n1)
+                    if [ "$nvme_dev" = "/dev/nvme0n1" ]; then
+                      continue
+                    fi
+                    
+                    # Check if device is not already mounted
+                    if ! grep -q "$nvme_dev" /proc/mounts; then
+                      # Check if device has a filesystem or is empty
+                      if ! blkid "$nvme_dev" > /dev/null 2>&1; then
+                        echo "Found unmounted, unformatted NVMe device: $nvme_dev"
+                        real_device=$nvme_dev
+                        break
+                      else
+                        # Device has a filesystem, check if it matches our mount point
+                        local existing_mount=$(findmnt -n -o TARGET --source "$nvme_dev" 2>/dev/null || echo "")
+                        if [ -z "$existing_mount" ]; then
+                          echo "Found formatted but unmounted device: $nvme_dev"
+                          real_device=$nvme_dev
+                          break
+                        fi
+                      fi
+                    fi
+                  fi
+                done
+              fi
+              
+              if [ -z "$real_device" ]; then
+                sleep 2
+                ((count++))
+              fi
+            done
+
+            if [ -z "$real_device" ]; then
+               echo "ERROR: Could not find device for $requested_device after $max_retries attempts"
+               echo "Available block devices:"
+               lsblk
+               exit 1
+            fi
+
+            echo "Successfully identified device: $real_device"
+
+            # Format if needed
+            if ! blkid "$real_device"; then
+              echo "Formatting $real_device as ext4..."
+              mkfs -t ext4 "$real_device"
+            else
+              echo "Device already has a filesystem"
+            fi
+
+            # Create mount point and mount
+            mkdir -p "$mount_point"
+            echo "Mounting $real_device to $mount_point..."
+            mount "$real_device" "$mount_point"
+            
+            # Add to fstab
+            local uuid=$(blkid -s UUID -o value "$real_device")
+            echo "UUID=$uuid $mount_point ext4 defaults,nofail 0 2" >> /etc/fstab
+            
+            # Set ownership
+            chown -R "$owner" "$mount_point"
+            
+            echo "=== Volume setup complete for $mount_point ==="
+            echo ""
+          }
+
+          # Wait a bit for all volumes to attach
+          echo "Waiting for EBS volumes to attach..."
+          sleep 15
+
+          # Setup volumes in order
+          echo "Setting up PostgreSQL volume..."
+          setup_volume /dev/sdf /data/postgres 999:999
+          mkdir -p /data/postgres/data
+          rm -rf /data/postgres/lost+found
+          chown -R 999:999 /data/postgres
+
+          echo "Setting up Kafka volume..."
+          setup_volume /dev/sdg /data/kafka 1000:1000
+          mkdir -p /data/kafka/data/logs
+          chown -R 1000:1000 /data/kafka
+
+          echo "Setting up Redis volume..."
+          setup_volume /dev/sdh /data/redis 999:999
+          mkdir -p /data/redis/data
+          rm -rf /data/redis/lost+found
+          chown -R 999:999 /data/redis
+
+          echo "Setting up Zookeeper volume..."
+          setup_volume /dev/sdi /data/zookeeper 1000:1000
+          mkdir -p /data/zookeeper/data
+          mkdir -p /data/zookeeper/log
+          rm -rf /data/zookeeper/lost+found
+          chown -R 1000:1000 /data/zookeeper
+          echo "All volumes mounted successfully:"
+          df -h | grep /data
+
+          # Initialize swarm
+          echo "Initializing Docker Swarm..."
+          PRIVATE_IP=$(hostname -i | awk '{print $1}')
+          echo "Manager private IP: $PRIVATE_IP"
+          
+          docker swarm init --advertise-addr $PRIVATE_IP
+          
+          echo "Swarm initialized. Getting worker token..."
+          WORKER_TOKEN=$(docker swarm join-token worker -q)
+
+          # Store the token in SSM
+          echo "Storing worker token in SSM Parameter Store..."
+          aws ssm put-parameter \
+            --name "/${AWS::StackName}/swarm/join-token" \
+            --value "$WORKER_TOKEN" \
+            --type "SecureString" \
+            --overwrite \
+            --region "${AWS::Region}"
+
+          echo "Verifying swarm status..."
+          docker node ls
+
+          echo "User-data script completed successfully!"
       Tags:
         - Key: Name
           Value: !Sub ${AWS::StackName}-Manager
-
-  WorkerInstance:
-    Type: AWS::EC2::Instance
+        - Key: SwarmRole
+          Value: manager
+  ManagerEIPAssociation:
+    Type: AWS::EC2::EIPAssociation
     Properties:
+      AllocationId: !GetAtt ManagerEIP.AllocationId
+      InstanceId: !Ref ManagerInstance
+  PostgreSQLVolumeAttachment:
+    Type: AWS::EC2::VolumeAttachment
+    Properties:
+      Device: /dev/sdf
+      InstanceId: !Ref ManagerInstance
+      VolumeId: !Ref PostgreSQLVolume
+  KafkaVolumeAttachment:
+    Type: AWS::EC2::VolumeAttachment
+    Properties:
+      Device: /dev/sdg
+      InstanceId: !Ref ManagerInstance
+      VolumeId: !Ref KafkaVolume
+  RedisVolumeAttachment:
+    Type: AWS::EC2::VolumeAttachment
+    Properties:
+      Device: /dev/sdh
+      InstanceId: !Ref ManagerInstance
+      VolumeId: !Ref RedisVolume
+  ZookeeperVolumeAttachment:
+    Type: AWS::EC2::VolumeAttachment
+    Properties:
+      Device: /dev/sdi
+      InstanceId: !Ref ManagerInstance
+      VolumeId: !Ref ZookeeperVolume
+
+  WorkerInstance1:
+    Type: AWS::EC2::Instance
+    DependsOn: ManagerInstance
+    Properties:
+      IamInstanceProfile: !Ref WorkerInstanceProfile
       InstanceType: !Ref WorkerInstanceType
       KeyName: !Ref KeyName
-      ImageId: "ami-0c55b159cbfafe1f0" # Amazon Linux 2 AMI for us-east-1 (change if needed)
+      ImageId: ami-015b994979bf6246a
       SecurityGroupIds:
-        - !Ref WorkerSecurityGroup
-      SubnetId: !Ref PrivateSubnet
-      UserData:
-        Fn::Base64: |
+        - !Ref SwarmSecurityGroup
+      SubnetId: !Ref PublicSubnet
+      UserData: !Base64
+        Fn::Sub: |
           #!/bin/bash
-          yum update -y
-          amazon-linux-extras install docker -y
+          set -e
+          
+          # Log all output for debugging
+          exec > >(tee /var/log/user-data.log)
+          exec 2>&1
+          
+          echo "Starting worker1 user-data script..."
+
+          dnf update -y
+          dnf install -y aws-cli docker
           systemctl enable docker
           systemctl start docker
           usermod -aG docker ec2-user
+
+          echo "Waiting for manager to initialize swarm..."
+          sleep 45
+
+          echo "Retrieving join token from SSM..."
+          TOKEN=$(aws ssm get-parameter --name "/${AWS::StackName}/swarm/join-token" --with-decryption --query "Parameter.Value" --output text --region "${AWS::Region}")
+          
+          echo "Retrieving manager private IP..."
+          MANAGER_PRIVATE_IP=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=${AWS::StackName}-Manager" "Name=instance-state-name,Values=running" \
+            --query "Reservations[0].Instances[0].PrivateIpAddress" \
+            --output text \
+            --region "${AWS::Region}")
+
+          echo "Joining swarm at $MANAGER_PRIVATE_IP:2377..."
+          docker swarm join --token $TOKEN $MANAGER_PRIVATE_IP:2377
+
+          echo "Worker1 joined swarm successfully!"
       Tags:
         - Key: Name
-          Value: !Sub ${AWS::StackName}-Worker
+          Value: !Sub ${AWS::StackName}-Worker1
+        - Key: SwarmRole
+          Value: worker
+  WorkerInstance2:
+    Type: AWS::EC2::Instance
+    DependsOn: ManagerInstance
+    Properties:
+      IamInstanceProfile: !Ref WorkerInstanceProfile
+      InstanceType: !Ref WorkerInstanceType
+      KeyName: !Ref KeyName
+      ImageId: ami-015b994979bf6246a
+      SecurityGroupIds:
+        - !Ref SwarmSecurityGroup
+      SubnetId: !Ref PublicSubnet
+      UserData: !Base64
+        Fn::Sub: |
+          #!/bin/bash
+          set -e
+          
+          # Log all output for debugging
+          exec > >(tee /var/log/user-data.log)
+          exec 2>&1
+          
+          echo "Starting worker2 user-data script..."
 
+          dnf update -y
+          dnf install -y aws-cli docker
+          systemctl enable docker
+          systemctl start docker
+          usermod -aG docker ec2-user
+
+          echo "Waiting for manager to initialize swarm..."
+          sleep 45
+
+          echo "Retrieving join token from SSM..."
+          TOKEN=$(aws ssm get-parameter --name "/${AWS::StackName}/swarm/join-token" --with-decryption --query "Parameter.Value" --output text --region "${AWS::Region}")
+          
+          echo "Retrieving manager private IP..."
+          MANAGER_PRIVATE_IP=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=${AWS::StackName}-Manager" "Name=instance-state-name,Values=running" \
+            --query "Reservations[0].Instances[0].PrivateIpAddress" \
+            --output text \
+            --region "${AWS::Region}")
+
+          echo "Joining swarm at $MANAGER_PRIVATE_IP:2377..."
+          docker swarm join --token $TOKEN $MANAGER_PRIVATE_IP:2377
+
+          echo "Worker2 joined swarm successfully!"
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Worker2
+        - Key: SwarmRole
+          Value: worker
 Outputs:
   ManagerPublicIP:
-    Description: "Public IP address of the Swarm Manager. Use this to SSH."
-    Value: !GetAtt ManagerInstance.PublicIp
+    Description: Public IP address of the Swarm Manager. Use this to SSH.
+    Value: !Ref ManagerEIP
+  Worker1PublicIP:
+    Description: Public IP address of Swarm Worker 1.
+    Value: !GetAtt WorkerInstance1.PublicIp
+  Worker2PublicIP:
+    Description: Public IP address of Swarm Worker 2.
+    Value: !GetAtt WorkerInstance2.PublicIp
   ManagerPrivateIP:
-    Description: "Private IP address of the Swarm Manager."
+    Description: Private IP address of the Swarm Manager.
     Value: !GetAtt ManagerInstance.PrivateIp
-  WorkerPrivateIP:
-    Description: "Private IP address of the Swarm Worker."
-    Value: !GetAtt WorkerInstance.PrivateIp
-  SSHCommand:
-    Description: "Command to SSH into the Swarm Manager"
-    Value: !Sub "ssh -i YOUR_PEM_FILE.pem ec2-user@${ManagerInstance.PublicIp}"
+  Worker1PrivateIP:
+    Description: Private IP address of Swarm Worker 1.
+    Value: !GetAtt WorkerInstance1.PrivateIp
+  Worker2PrivateIP:
+    Description: Private IP address of Swarm Worker 2.
+    Value: !GetAtt WorkerInstance2.PrivateIp
+  SSHCommandManager:
+    Description: Command to SSH into the Swarm Manager
+    Value: !Sub ssh -i YOUR_PEM_FILE.pem ec2-user@${ManagerEIP}
+  SSHCommandWorker1:
+    Description: Command to SSH into Worker 1
+    Value: !Sub ssh -i YOUR_PEM_FILE.pem ec2-user@${WorkerInstance1.PublicIp}
+  SSHCommandWorker2:
+    Description: Command to SSH into Worker 2
+    Value: !Sub ssh -i YOUR_PEM_FILE.pem ec2-user@${WorkerInstance2.PublicIp}
+  JoinSwarmInstructions:
+    Description: Instructions to join workers to the swarm
+    Value: |
+      1. SSH to manager: ssh -i YOUR_PEM_FILE.pem ec2-user@MANAGER_IP
+      2. Verify with: docker node ls (on manager)
+  DeployStackInstructions:
+    Description: Instructions to deploy your microservices
+    Value: |
+      1. Copy your docker-compose.yml to the manager
+      2. SSH to manager
+      3. Run: docker stack deploy -c docker-compose.yml myapp
+      4. Check status: docker stack services myapp
+  DataVolumePaths:
+    Description: Persistent data volume mount paths on manager
+    Value: |
+      PostgreSQL: /data/postgres
+      Kafka: /data/kafka
+      Redis: /data/redis
+      Zookeeper: /data/zookeeper
+  DebugLogLocation:
+    Description: Location of user-data execution logs for debugging
+    Value: |
+      SSH to instances and check: /var/log/user-data.log
+      Manager: sudo cat /var/log/user-data.log
+      Workers: sudo cat /var/log/user-data.log
+  EstimatedMonthlyCost:
+    Description: Estimated monthly cost (US East region, approximate)
+    Value: |
+      EC2 Instances: ~$20-25/month
+      EBS Volumes (36GB gp3): ~$4/month
+      Elastic IPs (3 free while attached): $0/month
+      Data Transfer: ~$1-5/month
+      Total: ~$25-34/month (56% savings vs NAT Gateway!)
+      Remember to stop/terminate when not in use!
+  SecurityNote:
+    Description: Security recommendations
+    Value: |
+      IMPORTANT: Update the AllowSSHFrom parameter to your IP address (not 0.0.0.0/0)
+      Example: aws cloudformation update-stack --parameters ParameterKey=AllowSSHFrom,ParameterValue=YOUR_IP/32

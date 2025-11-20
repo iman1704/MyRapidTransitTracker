@@ -126,7 +126,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile.ingestion
     platform: linux/arm64
-    container_name: gtfs-ingestion:latest
+    container_name: gtfs-data-ingestion
     depends_on:
       kafka:
         condition: service_healthy
@@ -150,7 +150,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile.consumer
     platform: linux/arm64
-    container_name: gtfs-consumer:latest
+    container_name: gtfs-raw-consumer
     depends_on:
       kafka:
         condition: service_healthy
@@ -168,11 +168,9 @@ services:
   # DATABASE WRITER - Writes to PostgreSQL
   # ============================================
   database-writer:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.writer
+    image: iman17/gtfs-writer
     platform: linux/arm64
-    container_name: gtfs-writer:latest
+    container_name: gtfs-database-writer
     depends_on:
       kafka:
         condition: service_healthy
@@ -193,14 +191,14 @@ services:
     restart: unless-stopped
 
   # ============================================
-  # API ENDPOINT - Web Application
+  # VISUALIZATION - Web Application
   # ============================================
   web-app:
     build:
       context: .
       dockerfile: docker/Dockerfile.viz
     platform: linux/arm64
-    container_name: gtfs-endpoint:latest
+    container_name: gtfs-visualization
     depends_on:
       postgres:
         condition: service_healthy
